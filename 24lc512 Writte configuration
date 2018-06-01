@@ -1,0 +1,62 @@
+#include <stdint.h>
+#include "tm4c123gh6pm.h"
+#include <math.h>
+
+#define EEPROM_I2C_ADDRESS 0b10100000
+
+/*********************Habilitar el I2C1*********************************/
+void I2C1_24lc512(void){
+    SYSCTL_RCGCI2C_R |= SYSCTL_RCGCI2C_R1;                  // habilita el reloj del I2C1
+    while((SYSCTL_PRI2C_R & SYSCTL_PRI2C_R1)==0);
+    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R0 ;               // habiilita el reloj del puerto A
+    while((SYSCTL_PRGPIO_R & SYSCTL_PRGPIO_R0)==0);
+    GPIO_PORTA_AFSEL_R |= 0xC0;                             // se activan funciones alternativas
+    GPIO_PORTA_PCTL_R = (GPIO_PORTA_PCTL_R & ~0xFF000000) + 0x33000000;
+    GPIO_PORTA_ODR_R |= 0x80;                               // se configura el sda como open-drain
+    GPIO_PORTA_ODR_R |= 0x40;                              // se activa el scl
+    GPIO_PORTA_AMSEL_R &= ~0xC0;                             // desactiva funcion analogica
+    GPIO_PORTA_DEN_R |= 0xC0;                               // Función digital activada
+    I2C1_MCR_R |= 0x10;                                     // se incializa el maestro
+    I2C1_MTPR_R = 0x04;                                 // configure for 400 kbps clock;
+    // se configura la velocidad MTPR = (System Clock/(2*(SCL_LP + SCL_HP)*SCL_CLK))-1;
+    I2C1_MCS_R &= ~0x10;                                    // Se pone el bit HS en 0, se descativa high speedmode
+}
+/********************* Fin Habilitar I2C1    ************************************/
+
+/********************    TRANSMISION POR I2C  ************************************/
+uint32_t escribir_I2C_24lc512 (uint8_t direccion_esclavo ,uint8_t high, uint8_t low, uint8_t dato){
+
+    while(I2C1_MCS_R&I2C_MCS_BUSY);                                 // Esperar a I2C libre
+    I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1);    // Direccion de esclavo con W/R=0
+    I2C1_MSA_R&=~0x01;                                               // Modo escritura
+    I2C1_MDR_R= high & 0xFF;                                        // Enviamos el byte más significativo de la dirección de memoria
+    I2C1_MCS_R =(0
+            |I2C_MCS_ACK                                            //Habilitar el Acknowledge
+            |I2C_MCS_START                                          // Generar Start/ Restart
+            |I2C_MCS_RUN);                                          // Prender modo Master
+    //while(I2C1_MCS_R&I2C_MCS_BUSY);                                 // Esperar a I2C libre
+
+    I2C1_MDR_R= low & 0xFF;                                        // Enviamos el byte menos significativo de la dirección de memoria
+        I2C1_MCS_R =(0
+                |I2C_MCS_ACK                                        //se genera un bit de reconocimiento
+                |I2C_MCS_RUN);                                      //Prender el maestro
+
+        I2C1_MDR_R= dato & 0xFF;                                        // Enviamos el dato a grabar en la memoria
+            I2C1_MCS_R =(0
+                    |I2C_MCS_ACK
+                    |I2C_MCS_STOP                                         // Generar un stop
+                    |I2C_MCS_RUN);
+    return (I2C1_MCS_R&(I2C_MCS_DATACK|I2C_MCS_ADRACK|I2C_MCS_ERROR));  // Retornar algun error
+}
+/******************** FIN TRANSMISION POR I2C  ************************************/
+
+void main(void){
+
+    uint32_t error;
+    
+    I2C1_24lc512();
+
+    error= escribir_I2C_24lc512(EEPROM_I2C_ADDRESS, 0x00, 0x50, 'A'); //se evalua que se guarda un dato
+    error = error; //se analiza el error
+
+}
