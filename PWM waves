@@ -1,0 +1,170 @@
+/* Autor: Gerardo Quispe Ochoa 
+Programa: Ondas pwm de % de ciclo de trabajo programables (e independientes).
+utiliza puertos PE4,PB4,PB6 y PC4.
+*/
+
+
+
+#include "tm4c123gh6pm.h"
+#include "stdint.h"
+
+
+void config_PWM(void){
+
+SYSCTL_RCGC0_R |= 0X100000; //Se habilita el reloj para el PWM0
+//Habilitamos el puerto B,C,E
+SYSCTL_RCGC2_R|=0x16;// habilitamos PB,PC,PE
+while(SYSCTL_PRGPIO_R != 0X16);
+
+SYSCTL_RCC_R = (SYSCTL_RCC_R & ~0x1E0000)| (0xA<<17); /*dividir entre 4 la frecuencia de 80 MH*/
+
+PWM0_0_CTL_R= ((PWM0_0_CTL_R &~ ((3<<6)| (1<<4)|(1<<3)| (1<<1) |(1<<0)))|(1<<2)); //Cuenta descendente y sincronización local
+
+PWM0_1_CTL_R= ((PWM0_1_CTL_R &~ ((3<<6)| (1<<4)|(1<<3)| (1<<1) |(1<<0)))|(1<<2)); //Cuenta descendente y sincronización local
+
+PWM0_2_CTL_R= ((PWM0_2_CTL_R &~ ((3<<6)| (1<<4)|(1<<3)| (1<<1) |(1<<0)))|(1<<2)); //Cuenta descendente y sincronización local
+
+PWM0_3_CTL_R= ((PWM0_3_CTL_R &~ ((3<<6)| (1<<4)|(1<<3)| (1<<1) |(1<<0)))|(1<<2)); //Cuenta descendente y sincronización local
+
+PWM0_0_GENA_R &= ~ ((3<<10) | (3<<0));// DO NOTHING
+
+PWM0_1_GENA_R &= ~ ((3<<10) | (3<<0));// DO NOTHING
+
+PWM0_2_GENA_R &= ~ ((3<<10) | (3<<0));// DO NOTHING
+
+PWM0_3_GENA_R &= ~ ((3<<10) | (3<<0));// DO NOTHING
+
+PWM0_0_GENA_R |= (2<<2)|(3<<6);//PB6 se pone a 1 cuando la cuenta llega al valor de COMPA
+PWM0_1_GENA_R |= (2<<2)|(3<<6);//PB5 se pone a 1 cuando la cuenta llega al valor de COMPA
+PWM0_2_GENA_R |= (2<<2)|(3<<6);//PE5 se pone a 1 cuando la cuenta llega al valor de COMPA
+PWM0_3_GENA_R |= (2<<2)|(3<<6);//PC4 se pone a 1 cuando la cuenta llega al valor de COMPA
+PWM0_INVERT_R &= ~0X69;//Señal no invertida PW0 PW2 PW4 PW6
+
+//PB6 M0PWM0
+GPIO_PORTB_DIR_R |= (1<<6);
+GPIO_PORTB_DR2R_R |=(1<<6);
+GPIO_PORTB_DEN_R |= (1<<6);
+GPIO_PORTB_AFSEL_R |= (1<<6); // Función Alterna para PB6, no GPIO
+GPIO_PORTB_PCTL_R=((GPIO_PORTB_PCTL_R & 0xF0FFFFFF)|0x04000000);
+ // Seleccionamos función 4 (PWM) de PB6
+
+//PB4 M0PWM2
+GPIO_PORTB_DIR_R |= (1<<4);
+GPIO_PORTB_DR2R_R |=(1<<4);
+GPIO_PORTB_DEN_R |= (1<<4);
+GPIO_PORTB_AFSEL_R |= (1<<4); // Función Alterna para PB5, no GPIO
+GPIO_PORTB_PCTL_R=((GPIO_PORTB_PCTL_R & 0xFFF0FFFF)|0x00040000);
+ // Seleccionamos función 4 (PWM) de PB4
+
+//PE4 M0PWM4
+GPIO_PORTE_DIR_R |= (1<<4);
+GPIO_PORTE_DR2R_R |=(1<<4);
+GPIO_PORTE_DEN_R |= (1<<4);
+GPIO_PORTE_AFSEL_R |= (1<<4); // Función Alterna para PE5, no GPIO
+GPIO_PORTE_PCTL_R=((GPIO_PORTE_PCTL_R & 0xFFF0FFFF)|0x00040000);
+ // Seleccionamos función 4 (PWM) de PE4
+
+//PC4 M0PWM6
+GPIO_PORTC_DIR_R |= (1<<4);
+GPIO_PORTC_DR2R_R |=(1<<4);
+GPIO_PORTC_DEN_R |= (1<<4);
+GPIO_PORTC_AFSEL_R |= (1<<4); // Función Alterna para PC4, no GPIO
+GPIO_PORTC_PCTL_R=((GPIO_PORTC_PCTL_R & 0xFFF0FFFF)|0x00040000);
+ // Seleccionamos función 4 (PWM) de PC4
+
+
+
+}
+/**************************************************************************/
+/*Función para generar una señal PWM GENERADOR 3*/
+void PWM_OUT3( uint32_t Freq, uint32_t DC)
+{ uint32_t valor_freq;
+uint32_t valor_DC;
+PWM0_ENABLE_R &= ~0x40; // Deshabilita M0PWM6
+PWM0_3_CTL_R &= ~1; //Desactiva generador 3 Modulo 0
+valor_freq=40000/(Freq);
+
+valor_DC= (DC*(valor_freq +1)/100)-1; //Porcentaje de la carga DC%
+PWM0_3_LOAD_R &= ~0xFFFF;
+PWM0_3_LOAD_R |= valor_freq;//Carga el valor para la freq en PWM_LOAD
+PWM0_3_CMPA_R &= ~0xFFFF;
+PWM0_3_CMPA_R |= valor_DC; // carga el valor para el DC en CMPA
+PWM0_3_CTL_R |=1; //Activa generador 3 Modulo 0
+PWM0_ENABLE_R |= (1<<6); //habilita M0PWM6
+}
+
+/*Función para generar una señal PWM GENERADOR 2*/
+void PWM_OUT2( uint32_t Freq, uint32_t DC)
+{ uint32_t valor_freq;
+uint32_t valor_DC;
+PWM0_ENABLE_R &= ~(1<<4); // Deshabilita M0PWM4
+PWM0_2_CTL_R &= ~1; //Desactiva generador 2 Modulo 0
+valor_freq=40000/(Freq);
+
+valor_DC= (DC*(valor_freq +1)/100)-1; //Porcentaje de la carga DC%
+PWM0_2_LOAD_R &= ~0xFFFF;
+PWM0_2_LOAD_R |= valor_freq;//Carga el valor para la freq en PWM_LOAD
+PWM0_2_CMPA_R &= ~0xFFFF;
+PWM0_2_CMPA_R |= valor_DC; // carga el valor para el DC en CMPA
+PWM0_2_CTL_R |=1; //Activa generador 2 Modulo 0
+PWM0_ENABLE_R |= (1<<4); //habilita M0PWM4
+}
+
+/*Función para generar una señal PWM GENERADOR 1*/
+void PWM_OUT1( uint32_t Freq, uint32_t DC)
+{ uint32_t valor_freq;
+uint32_t valor_DC;
+PWM0_ENABLE_R &= ~(1<<2); // Deshabilita M0PWM2
+PWM0_1_CTL_R &= ~1; //Desactiva generador 1 Modulo 0
+valor_freq=40000/(Freq);
+
+valor_DC= (DC*(valor_freq +1)/100)-1; //Porcentaje de la carga DC%
+PWM0_1_LOAD_R &= ~0xFFFF;
+PWM0_1_LOAD_R |= valor_freq;//Carga el valor para la freq en PWM_LOAD
+PWM0_1_CMPA_R &= ~0xFFFF;
+PWM0_1_CMPA_R |= valor_DC; // carga el valor para el DC en CMPA
+PWM0_1_CTL_R |=1; //Activa generador 1 Modulo 0
+PWM0_ENABLE_R |= (1<<2); //habilita M1PWM2
+}
+
+/*Función para generar una señal PWM GENERADOR 0*/
+void PWM_OUT0( uint32_t Freq, uint32_t DC)
+{ uint32_t valor_freq;
+uint32_t valor_DC;
+PWM0_ENABLE_R &= ~1; // Deshabilita M0PWM0
+PWM0_0_CTL_R &= ~1; //Desactiva generador 1 Modulo 1
+valor_freq=40000/(Freq);
+
+valor_DC= (DC*(valor_freq +1)/100)-1; //Porcentaje de la carga DC%
+PWM0_0_LOAD_R &= ~0xFFFF;
+PWM0_0_LOAD_R |= valor_freq;//Carga el valor para la freq en PWM_LOAD
+PWM0_0_CMPA_R &= ~0xFFFF;
+PWM0_0_CMPA_R |= valor_DC; // carga el valor para el DC en CMPA
+PWM0_0_CTL_R |=1; //Activa generador 0 Modulo 0
+PWM0_ENABLE_R |= 1; //habilita M0PWM0
+}
+/**************************************************************************/
+ 
+void main(void) {
+    uint32_t i,j;
+    /*Configurar puertos*/
+    config_PWM();
+
+    /*Inicializar valores*/
+    uint32_t Freq=1;//Frecuencia inicial 1KHz
+
+    while(1){
+
+PWM_OUT2 (Freq, 8);//PE4
+    PWM_OUT1 (Freq, 8);//PB4
+     for(i=1;i<=11;i++){//se pone de puntas
+    PWM_OUT0 (Freq, i);//PB6
+    PWM_OUT3 (Freq, i);//PC4
+    for(j=0;j<=400000;j++);
+    }
+     for(i=11;i>0;i--){// Se regresan a la posicion inicial
+         PWM_OUT0 (Freq, i);//PB6  ESTO HA FUNCIONADO PARA PONER DE PUNTAS A OTTO
+         PWM_OUT3 (Freq, i);//PC4  LOS SERVOMOTORES ESTAN CONECTADOS A ESTOS DOS TERMINALES
+         for(j=0;j<=400000;j++);
+         }
+}}
