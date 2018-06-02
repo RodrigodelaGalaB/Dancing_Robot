@@ -1,3 +1,5 @@
+//se configura la comunicación I2C entre el módulo Tiva y la memoria EEPROM 24lc512
+
 #include <stdint.h>
 #include "tm4c123gh6pm.h"
 #include <math.h>
