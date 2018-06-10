@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include "tm4c123gh6pm.h"
 
+//PE4 --> Rx
+//PE5 --> Tx
+
 void ConfiguraUART_HC05(void){ // Configuramos puerto UART5
 
     unsigned long temp;
