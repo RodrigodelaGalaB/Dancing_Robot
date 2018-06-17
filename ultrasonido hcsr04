@@ -4,22 +4,26 @@
 //ECHO (PB6) I
 //TRIGGER (PA4) O
 
-void delay_microseconds (uint32_t mili){
-    uint32_t i;
-    SYSCTL_RCGCTIMER_R |= (1<<1);
-    TIMER1_CTL_R &= ~(1<<1);
-    TIMER1_CFG_R = 0x04;
-    TIMER1_TAMR_R = 0x02;
-    TIMER1_TAILR_R = 15;
-    TIMER1_ICR_R = 0x1;
-    TIMER1_CTL_R |= 0x01;
-    for(i=0; i < mili; i++){
-           while((TIMER1_RIS_R & 0x1)==0);
-           TIMER1_RIS_R = 0x1;
-    }
+/*
+ * Esta librería cuenta con las funciones necesarias para emplear el dispositivo de ultrasonido
+ * HC SR04 con el módulo tm4c123gh6pm. Habilita el timer de recepción de la señal eco del ultrasonido
+ * y manda señales periódicas de 10 microsegundos al dispositivo como se específica en el datasheet.
+ */
+
+
+//Función que espera una cantidad de microsegundos
+void delay_microseconds (uint32_t micro){
+    NVIC_ST_CTRL_R |= ~0x01;
+    NVIC_ST_RELOAD_R = (NVIC_ST_RELOAD_R & ~0xFFFFFF) + 15;
+    NVIC_ST_CURRENT_R = 0;
+    NVIC_ST_CTRL_R = (NVIC_ST_CTRL_R & ~0x7) + 5;
+
+    while ((NVIC_ST_CTRL_R & (1<<16)) == 0);
 }
+//fin del systick
 
 
+//Programación del timer que analiza las señales emitidas por el sensor de ultrasonido
 void Timer0_Init (void) {
     SYSCTL_RCGCTIMER_R |=(1<<0);
     SYSCTL_RCGCGPIO_R |=(1<<1);
@@ -34,51 +38,74 @@ void Timer0_Init (void) {
     TIMER0_CTL_R |= 0x0C;
     TIMER0_CTL_R |= 1;
 }
+//fin programación del timer
 
 
+//Función que mide la distancia entre el sensor y el objeto
 uint32_t medir_distancia (void) {
 
     uint32_t distancia, highEdge, lowEdge;
 
+    /*
+     * Se manda un pulso de 10 microsegundos a la entrada del trigger
+     */
     GPIO_PORTA_DATA_R &= ~(1<<4);
-    delay_microseconds(12);
+    delay_microseconds(10);
     GPIO_PORTA_DATA_R |= (1<<4);
-    delay_microseconds(12);
+    delay_microseconds(10);
     GPIO_PORTA_DATA_R &= ~(1<<4);
-    /*Capture firstEgde i.e. rising edge*/
-    TIMER0_ICR_R = 4;
-    while((TIMER0_RIS_R & 4) == 0); //Wait till captured
+
+
+     // se captura el último flanco de subida de la señal emitida
+
+       TIMER0_ICR_R = 4;
+       while((TIMER0_RIS_R & 4) == 0);
        highEdge =  TIMER0_TAR_R;
 
-       /*Capture secondEdge i.e. falling edge */
-       TIMER0_ICR_R =4; //clear timer capture flag
+
+       // se captura el primer flanco en ser recibido por el ultrasonido
+
+       TIMER0_ICR_R =4;
        while((TIMER0_RIS_R & 4) == 0);
-           lowEdge = TIMER0_TAR_R;
-           distancia = lowEdge -highEdge;
-           distancia = ((double) 5882 *(double)distancia)/16000000;
+       lowEdge = TIMER0_TAR_R;
+
+
+       // se calcula el tiempo entre que se mandó la señal y el que se demoró en recibirla
+       distancia = lowEdge -highEdge;
+
+       //se usa una fórmula para calcular la distancia real en centímetros entre el pbjeto y el sensor
+       distancia = ((double) 5882 *(double)distancia)/(2*16000000);
 
       return distancia;
 }
+//Fin de función
 
 
+/*Fución de prueba
+ *
 void main(void){
 
     uint32_t distancia;
 
     SYSCTL_RCGCGPIO_R |= ((1<<0)|(1<<5));
-    GPIO_PORTA_DIR_R =(1<<4);
-    GPIO_PORTF_DIR_R = (1<<2);
+    GPIO_PORTA_DIR_R |=(1<<4);
+    GPIO_PORTF_DIR_R |= (1<<2);
     GPIO_PORTA_DEN_R |=(1<<6)|(1<<4);
     GPIO_PORTF_DEN_R|= (1<<2);
     GPIO_PORTF_DR8R_R|= (1<<2);
 
-    while(1){
     Timer0_Init();
+
+    while(1){
     distancia = medir_distancia();
-    if(distancia < 6)
+    if(distancia < 7){
     GPIO_PORTF_DATA_R |= (1<<2);
-    else
+    }
+    else{
     GPIO_PORTF_DATA_R &= ~(1<<2);
+    }
     delay_microseconds(100);
   }
 }
+
+*/
