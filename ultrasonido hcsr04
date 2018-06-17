@@ -1,0 +1,84 @@
+#include <stdint.h>
+#include "tm4c123gh6pm.h"
+
+//ECHO (PB6) I
+//TRIGGER (PA4) O
+
+void delay_microseconds (uint32_t mili){
+    uint32_t i;
+    SYSCTL_RCGCTIMER_R |= (1<<1);
+    TIMER1_CTL_R &= ~(1<<1);
+    TIMER1_CFG_R = 0x04;
+    TIMER1_TAMR_R = 0x02;
+    TIMER1_TAILR_R = 15;
+    TIMER1_ICR_R = 0x1;
+    TIMER1_CTL_R |= 0x01;
+    for(i=0; i < mili; i++){
+           while((TIMER1_RIS_R & 0x1)==0);
+           TIMER1_RIS_R = 0x1;
+    }
+}
+
+
+void Timer0_Init (void) {
+    SYSCTL_RCGCTIMER_R |=(1<<0);
+    SYSCTL_RCGCGPIO_R |=(1<<1);
+    GPIO_PORTB_DIR_R &= ~(1<<6);
+    GPIO_PORTB_DEN_R |= (1<<6);
+    GPIO_PORTB_AFSEL_R |= (1<<6);
+    GPIO_PORTB_PCTL_R &= ~0x0F000000;
+    GPIO_PORTB_PCTL_R |= 0x07000000;
+    TIMER0_CTL_R &= ~1;
+    TIMER0_CFG_R = 4;
+    TIMER0_TAMR_R = 0x17;
+    TIMER0_CTL_R |= 0x0C;
+    TIMER0_CTL_R |= 1;
+}
+
+
+uint32_t medir_distancia (void) {
+
+    uint32_t distancia, highEdge, lowEdge;
+
+    GPIO_PORTA_DATA_R &= ~(1<<4);
+    delay_microseconds(12);
+    GPIO_PORTA_DATA_R |= (1<<4);
+    delay_microseconds(12);
+    GPIO_PORTA_DATA_R &= ~(1<<4);
+    /*Capture firstEgde i.e. rising edge*/
+    TIMER0_ICR_R = 4;
+    while((TIMER0_RIS_R & 4) == 0); //Wait till captured
+       highEdge =  TIMER0_TAR_R;
+
+       /*Capture secondEdge i.e. falling edge */
+       TIMER0_ICR_R =4; //clear timer capture flag
+       while((TIMER0_RIS_R & 4) == 0);
+           lowEdge = TIMER0_TAR_R;
+           distancia = lowEdge -highEdge;
+           distancia = ((double) 5882 *(double)distancia)/16000000;
+
+      return distancia;
+}
+
+
+void main(void){
+
+    uint32_t distancia;
+
+    SYSCTL_RCGCGPIO_R |= ((1<<0)|(1<<5));
+    GPIO_PORTA_DIR_R =(1<<4);
+    GPIO_PORTF_DIR_R = (1<<2);
+    GPIO_PORTA_DEN_R |=(1<<6)|(1<<4);
+    GPIO_PORTF_DEN_R|= (1<<2);
+    GPIO_PORTF_DR8R_R|= (1<<2);
+
+    while(1){
+    Timer0_Init();
+    distancia = medir_distancia();
+    if(distancia < 6)
+    GPIO_PORTF_DATA_R |= (1<<2);
+    else
+    GPIO_PORTF_DATA_R &= ~(1<<2);
+    delay_microseconds(100);
+  }
+}
