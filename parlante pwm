@@ -9,7 +9,7 @@
 #define FS 93
 #define G 98
 #define GS 104
-#define B 123
+#define B 124
 #define C2 131
 #define C2S 139
 #define D2 147
@@ -18,12 +18,12 @@
 #define PAU 16000000UL
 
 //tiempos en milisegundos
-#define Neg 350
-#define Cor 175
-#define SCor 88
+#define Neg 500
+#define Cor 250
+#define SCor 125
 
 const uint32_t arrfreq[76] = {3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 1, 0, 1, 0, 1, 3, 0, 3, 0, 3, 0, 3, 1, 6, 5, 7,
-							  3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 1, 6, 5, 3, 5, 0, 5, 0, 5, 4, 0, 4, 0, 4, 0,
+                              3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 1, 6, 5, 3, 5, 0, 5, 0, 5, 4, 0, 4, 0, 4, 0,
                               4, 2, 13, 12, 9, 8, 6, 1, 6, 8, 8, 1, 1, 6, 8, 0, 8, 12, 13, 0, 0, 0, 0};
 
 const uint32_t arrtiempos [76] = {SCor, SCor, SCor, SCor, Cor, SCor, SCor, SCor, SCor, SCor, Cor, Cor, SCor, SCor, SCor, SCor, Cor, SCor,
@@ -31,6 +31,7 @@ const uint32_t arrtiempos [76] = {SCor, SCor, SCor, SCor, Cor, SCor, SCor, SCor,
                                   Cor, Cor, Cor, Cor, Cor, Cor, SCor, SCor, SCor, SCor, Cor, SCor, SCor, SCor, SCor,
                                   SCor, Cor, Cor, Cor, Cor, Cor, Cor, Cor, Cor, Cor, Cor, Neg, Cor, Cor, Cor, Cor,
                                   SCor, Neg, Cor, Cor, Neg, Neg, Neg, Neg};
+
 
 void Timer0_PWM (void){
 
@@ -73,15 +74,25 @@ void retardo_ms (uint32_t mili) {
 
 void GeneraNota (uint32_t nota) {
 const uint32_t arreg_notas[14] = {PAU, C, D, E, F, FS, G, GS, B, C2, C2S, D2, D2S, E2};
-uint32_t N, PW;
+uint32_t N, PW, TBILR, TBPR, TBMATCHR, TBPMR;
+
     N = (16000000UL/arreg_notas[nota]) - 1;
-    TIMER0_TBILR_R = N;
-    TIMER0_TBPR_R = 0;
+    TBILR = N & 0xFFFF;
+    TBPR = (N>>16) & 0xFF;
+
+    TIMER0_TBILR_R = TBILR;
+    TIMER0_TBPR_R = TBPR;
+
     PW = N/2;
-    TIMER0_TBMATCHR_R = PW;
+    TBMATCHR = PW & 0xFFFF;
+    TBPMR = (PW>>16) & 0xFF;
+
+    TIMER0_TBMATCHR_R = TBMATCHR;
+    TIMER0_TBPMR_R = TBPMR;
 }
 
-
+/*Función que permite emitir los sonidos por el parlante
+ *
 void main(void) {
 
 uint32_t i;
@@ -96,5 +107,4 @@ while (1) {
 }
 
 }
-
-
+*/
